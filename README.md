@@ -5,10 +5,9 @@ A complete Docker Compose setup for running Kodi with a web interface, Samba fil
 ## Features
 
 - **Kodi Headless**: Runs Kodi without GUI, accessible via web interface
-- **Web Interface**: Access Kodi through your browser at `http://localhost`
+- **Web Interface**: Access Kodi through your browser at `http://localhost:8080`
 - **Nextcloud**: Cloud storage with organized folders (Movies, TV-Shows, Pictures, Documents)
 - **Samba File Sharing**: Share media files and Kodi configuration across your network
-- **Nginx Reverse Proxy**: Clean URLs and optional SSL support
 - **Network Discovery**: Kodi can be discovered by other devices on the network
 - **Media Sync**: Automatic sync between Nextcloud and Kodi media libraries
 - **Docker Volumes**: Persistent storage using Docker named volumes
@@ -19,6 +18,7 @@ A complete Docker Compose setup for running Kodi with a web interface, Samba fil
 - At least 4GB RAM available (Nextcloud requires more memory)
 - Network access for media streaming
 - At least 10GB free disk space
+- Intel x86_64 compatible system
 
 ## Quick Start
 
@@ -35,13 +35,12 @@ A complete Docker Compose setup for running Kodi with a web interface, Samba fil
 
 3. **Start the services:**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 4. **Access the services:**
-   - Kodi Web Interface: http://localhost
-   - Nextcloud: http://localhost/nextcloud
-   - Direct Nextcloud: http://localhost:8081
+   - Kodi Web Interface: http://localhost:8080
+   - Nextcloud: http://localhost:8081
    - Samba: `\\localhost\media` (Windows) or `smb://localhost/media` (macOS/Linux)
 
 ## Default Credentials
@@ -64,9 +63,6 @@ homelab-kodi_nextcloud_apps/   # Nextcloud apps
 homelab-kodi_nextcloud_themes/ # Nextcloud themes
 homelab-kodi_nextcloud_db/     # Nextcloud database
 homelab-kodi_samba_config/     # Samba configuration
-homelab-kodi_nginx_config/     # Nginx main config
-homelab-kodi_nginx_confd/      # Nginx site configs
-homelab-kodi_nginx_ssl/        # SSL certificates
 ```
 
 ### **Managing Volumes:**
@@ -81,14 +77,14 @@ docker run --rm -v homelab-kodi_media_storage:/data -v $(pwd):/backup alpine tar
 docker run --rm -v homelab-kodi_media_storage:/data -v $(pwd):/backup alpine tar xzf /backup/media_backup.tar.gz -C /data
 
 # Remove volumes (WARNING: This will delete all data)
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Configuration
 
 ### Nextcloud Setup
 
-1. **First Access**: Visit http://localhost/nextcloud
+1. **First Access**: Visit http://localhost:8081
 2. **Login**: Use `admin` / `admin123`
 3. **Create Folders**: The setup creates the basic structure automatically
 4. **Upload Media**: Use the web interface to upload files
@@ -113,7 +109,7 @@ The setup includes three Samba shares:
 ### Adding Media
 
 **Option 1: Through Nextcloud (Recommended)**
-1. Access http://localhost/nextcloud
+1. Access http://localhost:8081
 2. Upload files to appropriate folders
 3. Files automatically sync to Kodi
 
@@ -135,16 +131,14 @@ To access from other devices on your network:
    ```
 
 2. **Access from other devices:**
-   - Kodi Web Interface: `http://YOUR_SERVER_IP`
-   - Nextcloud: `http://YOUR_SERVER_IP/nextcloud`
+   - Kodi Web Interface: `http://YOUR_SERVER_IP:8080`
+   - Nextcloud: `http://YOUR_SERVER_IP:8081`
    - Samba: `\\YOUR_SERVER_IP\media`
 
 ### Port Mappings
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Nginx | 80 | Web interface (HTTP) |
-| Nginx | 443 | Web interface (HTTPS) |
 | Kodi | 8080 | Direct Kodi web interface |
 | Kodi | 9090 | TCP control |
 | Kodi | 9777 | Network discovery (UDP) |
@@ -152,34 +146,6 @@ To access from other devices on your network:
 | Samba | 137-139, 445 | File sharing |
 
 ## Advanced Configuration
-
-### SSL/HTTPS Setup
-
-1. **Generate SSL certificates:**
-   ```bash
-   # Create certificates
-   openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-     -keyout cert.key -out cert.pem
-   
-   # Copy to nginx SSL volume
-   docker run --rm -v homelab-kodi_nginx_ssl:/ssl -v $(pwd):/certs alpine sh -c "
-     cp /certs/cert.pem /ssl/cert.pem
-     cp /certs/cert.key /ssl/key.pem
-     chmod 600 /ssl/*
-   "
-   ```
-
-2. **Uncomment HTTPS section in nginx configuration:**
-   ```bash
-   # Edit the nginx config in the volume
-   docker run --rm -it -v homelab-kodi_nginx_confd:/nginx_confd alpine sh
-   # Then edit /nginx_confd/kodi.conf to uncomment HTTPS section
-   ```
-
-3. **Restart services:**
-   ```bash
-   docker-compose restart nginx
-   ```
 
 ### Custom Samba Configuration
 
@@ -216,8 +182,8 @@ Recommended Nextcloud apps to install:
 
 2. **Nextcloud Not Starting:**
    ```bash
-   docker-compose logs nextcloud
-   docker-compose logs nextcloud-db
+   docker compose logs nextcloud
+   docker compose logs nextcloud-db
    ```
 
 3. **Media Not Syncing:**
@@ -226,7 +192,7 @@ Recommended Nextcloud apps to install:
    - Restart Kodi service
 
 4. **Port Already in Use:**
-   - Check if other services are using ports 80, 8080, 8081, or 445
+   - Check if other services are using ports 8080, 8081, or 445
    - Modify ports in `docker-compose.yml` if needed
 
 ### Logs
@@ -235,13 +201,12 @@ View logs for specific services:
 
 ```bash
 # All services
-docker-compose logs
+docker compose logs
 
 # Specific service
-docker-compose logs kodi
-docker-compose logs nextcloud
-docker-compose logs samba
-docker-compose logs nginx
+docker compose logs kodi
+docker compose logs nextcloud
+docker compose logs samba
 ```
 
 ### Backup and Restore
@@ -255,7 +220,7 @@ docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:
 
 **Backup Nextcloud data:**
 ```bash
-docker-compose exec nextcloud-db mysqldump -u nextcloud -p nextcloud > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose exec nextcloud-db mysqldump -u nextcloud -p nextcloud > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 **Backup media files:**
@@ -274,12 +239,11 @@ docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:
 ## Security Considerations
 
 1. **Change default passwords** in production
-2. **Use HTTPS** for web interface access
-3. **Configure firewall** to restrict access
-4. **Regular updates** of Docker images
-5. **Backup configurations** regularly
-6. **Limit Nextcloud access** to trusted networks
-7. **Secure volume access** with proper permissions
+2. **Configure firewall** to restrict access
+3. **Regular updates** of Docker images
+4. **Backup configurations** regularly
+5. **Limit Nextcloud access** to trusted networks
+6. **Secure volume access** with proper permissions
 
 ## Performance Optimization
 
@@ -299,7 +263,7 @@ docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:
 ## Support
 
 For issues and questions:
-- Check Docker logs: `docker-compose logs`
+- Check Docker logs: `docker compose logs`
 - Verify network connectivity
 - Ensure proper volume permissions
 - Check firewall settings
