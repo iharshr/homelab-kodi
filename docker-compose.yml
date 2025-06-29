@@ -1,0 +1,232 @@
+services:
+  kodi:
+    image: linuxserver/kodi-headless:latest
+    container_name: kodi
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - KODI_MASTER=true
+      - KODI_TCP_PORT=9090
+      - KODI_HTTP_PORT=8080
+      - KODI_WS_PORT=9090
+    volumes:
+      - kodi_config:/config
+      - media_storage:/media
+      - kodi_backup:/backup
+    ports:
+      - "8080:8080"  # Web interface
+      - "9090:9090"  # TCP control
+      - "9777:9777/udp"  # Kodi discovery
+    networks:
+      - kodi_network
+    restart: unless-stopped
+    depends_on:
+      - samba
+
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    environment:
+      - MYSQL_HOST=nextcloud-db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=nextcloud123
+      - NEXTCLOUD_ADMIN_USER=admin
+      - NEXTCLOUD_ADMIN_PASSWORD=admin123
+      - NEXTCLOUD_TRUSTED_DOMAINS=localhost,127.0.0.1
+    volumes:
+      - nextcloud_data:/var/www/html/data
+      - nextcloud_config:/var/www/html/config
+      - nextcloud_apps:/var/www/html/custom_apps
+      - nextcloud_themes:/var/www/html/themes
+    ports:
+      - "8081:80"
+    networks:
+      - kodi_network
+    restart: unless-stopped
+    depends_on:
+      - nextcloud-db
+
+  nextcloud-db:
+    image: mariadb:10.6
+    container_name: nextcloud-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_PASSWORD=nextcloud123
+    volumes:
+      - nextcloud_db:/var/lib/mysql
+    networks:
+      - kodi_network
+    restart: unless-stopped
+
+  samba:
+    image: dperson/samba:latest
+    container_name: kodi-samba
+    environment:
+      - TZ=UTC
+    volumes:
+      - samba_config:/etc/samba
+      - media_storage:/media
+      - kodi_config:/kodi-config
+      - nextcloud_data:/nextcloud-data:ro  # Read-only access to Nextcloud data
+    ports:
+      - "137:137/udp"
+      - "138:138/udp"
+      - "139:139"
+      - "445:445"
+    networks:
+      - kodi_network
+    restart: unless-stopped
+    command: '-u "kodi;kodi123" -s "media;/media;yes;no;yes;all;none;none" -s "kodi-config;/kodi-config;yes;no;yes;kodi;kodi" -s "nextcloud;/nextcloud-data;yes;no;yes;all;none;none" -p'
+
+  nginx:
+    image: nginx:alpine
+    container_name: kodi-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - nginx_ssl:/etc/nginx/ssl
+    networks:
+      - kodi_network
+    restart: unless-stopped
+    depends_on:
+      - kodi
+      - nextcloud
+    command: >
+      sh -c "
+      echo 'user nginx;
+      worker_processes auto;
+      error_log /var/log/nginx/error.log warn;
+      pid /var/run/nginx.pid;
+
+      events {
+          worker_connections 1024;
+      }
+
+      http {
+          include /etc/nginx/mime.types;
+          default_type application/octet-stream;
+
+          log_format main \"\$remote_addr - \$remote_user [\$time_local] \"\$request\" \"
+                          \"\$status \$body_bytes_sent \"\$http_referer\" \"
+                          \"\"\$http_user_agent\" \"\$http_x_forwarded_for\"\";
+
+          access_log /var/log/nginx/access.log main;
+
+          sendfile on;
+          tcp_nopush on;
+          tcp_nodelay on;
+          keepalive_timeout 65;
+          types_hash_max_size 2048;
+
+          gzip on;
+          gzip_vary on;
+          gzip_min_length 1024;
+          gzip_proxied any;
+          gzip_comp_level 6;
+          gzip_types
+              text/plain
+              text/css
+              text/xml
+              text/javascript
+              application/json
+              application/javascript
+              application/xml+rss
+              application/atom+xml
+              image/svg+xml;
+
+          server {
+              listen 80;
+              server_name localhost;
+              
+              add_header X-Frame-Options \"SAMEORIGIN\" always;
+              add_header X-XSS-Protection \"1; mode=block\" always;
+              add_header X-Content-Type-Options \"nosniff\" always;
+              add_header Referrer-Policy \"no-referrer-when-downgrade\" always;
+              add_header Content-Security-Policy \"default-src \"self\" http: https: data: blob: \"unsafe-inline\"\" always;
+
+              location / {
+                  proxy_pass http://kodi:8080;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+                  
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection \"upgrade\";
+                  
+                  proxy_connect_timeout 60s;
+                  proxy_send_timeout 60s;
+                  proxy_read_timeout 60s;
+              }
+
+              location /nextcloud {
+                  proxy_pass http://nextcloud:80;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+                  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto \$scheme;
+                  
+                  proxy_set_header X-Forwarded-Host \$host;
+                  proxy_set_header X-Forwarded-Server \$host;
+                  
+                  client_max_body_size 10G;
+                  proxy_connect_timeout 300s;
+                  proxy_send_timeout 300s;
+                  proxy_read_timeout 300s;
+              }
+
+              location /health {
+                  access_log off;
+                  return 200 \"healthy\\n\";
+                  add_header Content-Type text/plain;
+              }
+
+              error_page 404 /404.html;
+              error_page 500 502 503 504 /50x.html;
+              
+              location = /50x.html {
+                  root /usr/share/nginx/html;
+              }
+          }
+      }' > /etc/nginx/nginx.conf &&
+      nginx -g 'daemon off;'
+      "
+
+networks:
+  kodi_network:
+    driver: bridge
+
+volumes:
+  # Kodi volumes
+  kodi_config:
+    driver: local
+  kodi_backup:
+    driver: local
+  media_storage:
+    driver: local
+    
+  # Nextcloud volumes
+  nextcloud_data:
+    driver: local
+  nextcloud_config:
+    driver: local
+  nextcloud_apps:
+    driver: local
+  nextcloud_themes:
+    driver: local
+  nextcloud_db:
+    driver: local
+    
+  # Samba volume
+  samba_config:
+    driver: local
+    
+  # Nginx volume
+  nginx_ssl:
+    driver: local 
