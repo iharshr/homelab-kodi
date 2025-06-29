@@ -1,22 +1,19 @@
-# Kodi Homelab Setup with Web Interface, Samba, and Nextcloud
+# Nextcloud Homelab Setup
 
-A complete Docker Compose setup for running Kodi with a web interface, Samba file sharing, and Nextcloud for easy local network access and media management.
+A complete Docker Compose setup for running Nextcloud with local document management and file sharing capabilities.
 
 ## Features
 
-- **Kodi Headless**: Runs Kodi without GUI, accessible via web interface
-- **Web Interface**: Access Kodi through your browser at `http://localhost:8080`
-- **Nextcloud**: Cloud storage with organized folders (Movies, TV-Shows, Pictures, Documents)
-- **Samba File Sharing**: Share media files and Kodi configuration across your network
-- **Network Discovery**: Kodi can be discovered by other devices on the network
-- **Media Sync**: Automatic sync between Nextcloud and Kodi media libraries
+- **Nextcloud**: Cloud storage with organized folders for document management
+- **Document Management**: Upload, create, delete, and manage files and folders
+- **Local File Access**: Direct access to your local Documents folder
 - **Docker Volumes**: Persistent storage using Docker named volumes
+- **MariaDB Database**: Reliable database backend for Nextcloud
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
 - At least 4GB RAM available (Nextcloud requires more memory)
-- Network access for media streaming
 - At least 10GB free disk space
 - Intel x86_64 compatible system
 
@@ -38,15 +35,12 @@ A complete Docker Compose setup for running Kodi with a web interface, Samba fil
    docker compose up -d
    ```
 
-4. **Access the services:**
-   - Kodi Web Interface: http://localhost:8080
-   - Nextcloud: http://localhost:8081
-   - Samba: `\\localhost\media` (Windows) or `smb://localhost/media` (macOS/Linux)
+4. **Access Nextcloud:**
+   - Nextcloud: http://localhost:9000
 
 ## Default Credentials
 
 - **Nextcloud**: `admin` / `admin123`
-- **Samba**: `kodi` / `kodi123`
 
 ## Docker Volumes
 
@@ -54,15 +48,11 @@ The setup uses Docker named volumes for persistent storage:
 
 ### **Volume Structure:**
 ```
-homelab-kodi_kodi_config/      # Kodi configuration
-homelab-kodi_kodi_backup/      # Kodi backups
-homelab-kodi_media_storage/    # Media files (movies, TV shows, etc.)
 homelab-kodi_nextcloud_data/   # Nextcloud user data
 homelab-kodi_nextcloud_config/ # Nextcloud configuration
 homelab-kodi_nextcloud_apps/   # Nextcloud apps
 homelab-kodi_nextcloud_themes/ # Nextcloud themes
 homelab-kodi_nextcloud_db/     # Nextcloud database
-homelab-kodi_samba_config/     # Samba configuration
 ```
 
 ### **Managing Volumes:**
@@ -71,10 +61,10 @@ homelab-kodi_samba_config/     # Samba configuration
 docker volume ls | grep homelab-kodi
 
 # Backup a volume
-docker run --rm -v homelab-kodi_media_storage:/data -v $(pwd):/backup alpine tar czf /backup/media_backup.tar.gz -C /data .
+docker run --rm -v homelab-kodi_nextcloud_data:/data -v $(pwd):/backup alpine tar czf /backup/nextcloud_backup.tar.gz -C /data .
 
 # Restore a volume
-docker run --rm -v homelab-kodi_media_storage:/data -v $(pwd):/backup alpine tar xzf /backup/media_backup.tar.gz -C /data
+docker run --rm -v homelab-kodi_nextcloud_data:/data -v $(pwd):/backup alpine tar xzf /backup/nextcloud_backup.tar.gz -C /data
 
 # Remove volumes (WARNING: This will delete all data)
 docker compose down -v
@@ -84,39 +74,39 @@ docker compose down -v
 
 ### Nextcloud Setup
 
-1. **First Access**: Visit http://localhost:8081
+1. **First Access**: Visit http://localhost:9000
 2. **Login**: Use `admin` / `admin123`
 3. **Create Folders**: The setup creates the basic structure automatically
 4. **Upload Media**: Use the web interface to upload files
 
-### Media Sync with Kodi
+### Document Management
 
-The setup automatically syncs media between Nextcloud and Kodi:
+The setup provides full access to your local Documents folder:
 
 1. **Upload files** to Nextcloud folders
-2. **Files are automatically available** in Kodi
-3. **Kodi scans** the media folders for new content
-4. **Metadata is downloaded** automatically
+2. **Create new folders** and organize content
+3. **Delete files and folders** as needed
+4. **Move and rename files** easily
+5. **Share files** with other users
 
-### Samba Shares
+### Local Documents Access
 
-The setup includes three Samba shares:
-
-- **media**: Your media files (movies, TV shows, music)
-- **kodi-config**: Kodi configuration files for backup/restore
-- **nextcloud**: Nextcloud data files
+Your `/home/home/Documents` folder is mounted and accessible:
+- **Full read/write access** through Nextcloud
+- **Direct file management** capabilities
+- **Organized folder structure** for media and documents
 
 ### Adding Media
 
-**Option 1: Through Nextcloud (Recommended)**
-1. Access http://localhost:8081
+**Through Nextcloud (Recommended)**
+1. Access http://localhost:9000
 2. Upload files to appropriate folders
-3. Files automatically sync to Kodi
+3. Organize your media library
 
-**Option 2: Direct Volume Access**
+**Direct Volume Access**
 ```bash
-# Copy files directly to the media volume
-docker run --rm -v homelab-kodi_media_storage:/media -v /path/to/your/movies:/movies alpine cp -r /movies/* /media/movies/
+# Copy files directly to the nextcloud data volume
+docker run --rm -v homelab-kodi_nextcloud_data:/data -v /path/to/your/files:/files alpine cp -r /files/* /data/admin/files/
 ```
 
 ## Network Access
@@ -131,36 +121,23 @@ To access from other devices on your network:
    ```
 
 2. **Access from other devices:**
-   - Kodi Web Interface: `http://YOUR_SERVER_IP:8080`
-   - Nextcloud: `http://YOUR_SERVER_IP:8081`
-   - Samba: `\\YOUR_SERVER_IP\media`
+   - Nextcloud: `http://YOUR_SERVER_IP:9000`
 
 ### Port Mappings
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Kodi | 8080 | Direct Kodi web interface |
-| Kodi | 9090 | TCP control |
-| Kodi | 9777 | Network discovery (UDP) |
-| Nextcloud | 8081 | Direct Nextcloud access |
-| Samba | 137-139, 445 | File sharing |
+| Nextcloud | 9000 | Nextcloud web interface |
 
 ## Advanced Configuration
 
-### Custom Samba Configuration
+### Custom Nextcloud Configuration
 
-Edit Samba configuration in the volume:
+Edit Nextcloud configuration in the volume:
 ```bash
-docker run --rm -it -v homelab-kodi_samba_config:/samba_config alpine sh
-# Then edit /samba_config/smb.conf
+docker run --rm -it -v homelab-kodi_nextcloud_config:/config alpine sh
+# Then edit /config/config.php
 ```
-
-### Kodi Add-ons and Configuration
-
-1. **Access Kodi web interface**
-2. **Install add-ons** (Plex, Netflix, etc.)
-3. **Configure media sources** pointing to Samba shares
-4. **Set up libraries** for movies, TV shows, and music
 
 ### Nextcloud Apps
 
@@ -169,6 +146,8 @@ Recommended Nextcloud apps to install:
 - **Media Viewer**: For viewing media files
 - **Gallery**: For photo management
 - **Documents**: For document editing
+- **Calendar**: For scheduling
+- **Contacts**: For contact management
 
 ## Troubleshooting
 
@@ -177,7 +156,7 @@ Recommended Nextcloud apps to install:
 1. **Permission Denied:**
    ```bash
    # Fix volume permissions
-   docker run --rm -v homelab-kodi_media_storage:/media alpine chown -R 1000:1000 /media
+   docker run --rm -v homelab-kodi_nextcloud_data:/data alpine chown -R 33:33 /data
    ```
 
 2. **Nextcloud Not Starting:**
@@ -186,13 +165,13 @@ Recommended Nextcloud apps to install:
    docker compose logs nextcloud-db
    ```
 
-3. **Media Not Syncing:**
-   - Check volume permissions
-   - Verify volume mounts are correct
-   - Restart Kodi service
+3. **Database Connection Issues:**
+   - Check if MariaDB is running
+   - Verify database credentials
+   - Restart the database service
 
 4. **Port Already in Use:**
-   - Check if other services are using ports 8080, 8081, or 445
+   - Check if other services are using port 9000
    - Modify ports in `docker-compose.yml` if needed
 
 ### Logs
@@ -204,36 +183,29 @@ View logs for specific services:
 docker compose logs
 
 # Specific service
-docker compose logs kodi
 docker compose logs nextcloud
-docker compose logs samba
+docker compose logs nextcloud-db
 ```
 
 ### Backup and Restore
-
-**Backup Kodi configuration:**
-```bash
-docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:/backup alpine sh -c "
-  cp -r /config /backup/\$(date +%Y%m%d_%H%M%S)
-"
-```
 
 **Backup Nextcloud data:**
 ```bash
 docker compose exec nextcloud-db mysqldump -u nextcloud -p nextcloud > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
-**Backup media files:**
+**Backup Nextcloud files:**
 ```bash
-docker run --rm -v homelab-kodi_media_storage:/media -v $(pwd):/backup alpine tar czf /backup/media_backup_$(date +%Y%m%d_%H%M%S).tar.gz -C /media .
+docker run --rm -v homelab-kodi_nextcloud_data:/data -v $(pwd):/backup alpine tar czf /backup/nextcloud_backup_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
 ```
 
-**Restore configurations:**
+**Restore Nextcloud data:**
 ```bash
-# Restore Kodi config
-docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:/backup alpine sh -c "
-  cp -r /backup/BACKUP_DATE/* /config/
-"
+# Restore database
+docker compose exec -T nextcloud-db mysql -u nextcloud -p nextcloud < backup_YYYYMMDD_HHMMSS.sql
+
+# Restore files
+docker run --rm -v homelab-kodi_nextcloud_data:/data -v $(pwd):/backup alpine tar xzf /backup/nextcloud_backup_YYYYMMDD_HHMMSS.tar.gz -C /data
 ```
 
 ## Security Considerations
@@ -247,18 +219,11 @@ docker run --rm -v homelab-kodi_kodi_config:/config -v homelab-kodi_kodi_backup:
 
 ## Performance Optimization
 
-1. **Hardware acceleration** (if available):
-   ```yaml
-   # Add to kodi service in docker-compose.yml
-   devices:
-     - /dev/dri:/dev/dri
-   ```
-
-2. **SSD storage** for media files and databases
-3. **Adequate RAM** (8GB+ recommended for Nextcloud)
-4. **Network optimization** for streaming
-5. **Database optimization** for Nextcloud
-6. **Volume performance** tuning
+1. **SSD storage** for Nextcloud data and database
+2. **Adequate RAM** (8GB+ recommended for Nextcloud)
+3. **Database optimization** for Nextcloud
+4. **Volume performance** tuning
+5. **Enable Redis** for caching (optional)
 
 ## Support
 
@@ -267,7 +232,7 @@ For issues and questions:
 - Verify network connectivity
 - Ensure proper volume permissions
 - Check firewall settings
-- Review Nextcloud and Kodi documentation
+- Review Nextcloud documentation
 
 ## License
 

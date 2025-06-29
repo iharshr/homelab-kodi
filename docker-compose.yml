@@ -1,30 +1,4 @@
 services:
-  kodi:
-    image: linuxserver/kodi-headless:latest
-    container_name: kodi
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=UTC
-      - KODI_MASTER=true
-      - KODI_TCP_PORT=9090
-      - KODI_HTTP_PORT=8080
-      - KODI_WS_PORT=9090
-    volumes:
-      - kodi_config:/config
-      - media_storage:/media
-      - kodi_backup:/backup
-      - /home/home/Documents:/documents:ro  # Read-only access to Documents
-    ports:
-      - "8080:8080"  # Web interface
-      - "9090:9090"  # TCP control
-      - "9777:9777/udp"  # Kodi discovery
-    networks:
-      - kodi_network
-    restart: unless-stopped
-    depends_on:
-      - samba
-
   nextcloud:
     image: nextcloud:latest
     container_name: nextcloud
@@ -43,9 +17,9 @@ services:
       - nextcloud_themes:/var/www/html/themes
       - /home/home/Documents:/documents:rw  # Writable access to Documents for management
     ports:
-      - "8081:80"
+      - "9000:80"
     networks:
-      - kodi_network
+      - nextcloud_network
     restart: unless-stopped
     depends_on:
       - nextcloud-db
@@ -61,43 +35,14 @@ services:
     volumes:
       - nextcloud_db:/var/lib/mysql
     networks:
-      - kodi_network
+      - nextcloud_network
     restart: unless-stopped
-
-  samba:
-    image: dperson/samba:latest
-    container_name: kodi-samba
-    environment:
-      - TZ=UTC
-    volumes:
-      - samba_config:/etc/samba
-      - media_storage:/media
-      - kodi_config:/kodi-config
-      - nextcloud_data:/nextcloud-data:ro  # Read-only access to Nextcloud data
-      - /home/home/Documents:/documents:rw  # Writable access to Documents for management
-    ports:
-      - "137:137/udp"
-      - "138:138/udp"
-      - "139:139"
-      - "445:445"
-    networks:
-      - kodi_network
-    restart: unless-stopped
-    command: '-u "kodi;kodi123" -s "media;/media;yes;no;yes;all;none;none" -s "kodi-config;/kodi-config;yes;no;yes;kodi;kodi" -s "nextcloud;/nextcloud-data;yes;no;yes;all;none;none" -s "documents;/documents;yes;yes;yes;all;none;none" -p'
 
 networks:
-  kodi_network:
+  nextcloud_network:
     driver: bridge
 
 volumes:
-  # Kodi volumes
-  kodi_config:
-    driver: local
-  kodi_backup:
-    driver: local
-  media_storage:
-    driver: local
-    
   # Nextcloud volumes
   nextcloud_data:
     driver: local
@@ -108,8 +53,4 @@ volumes:
   nextcloud_themes:
     driver: local
   nextcloud_db:
-    driver: local
-    
-  # Samba volume
-  samba_config:
     driver: local 

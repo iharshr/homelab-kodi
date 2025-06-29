@@ -1,46 +1,62 @@
 #!/bin/bash
 
-# Nextcloud Setup Script for Kodi Media Sync
-# This script sets up the folder structure and syncs media with Kodi
+# Nextcloud Setup Script
+# This script sets up the folder structure for Nextcloud document management
 
-echo "Setting up Nextcloud with Kodi media sync..."
+set -e
 
-# Create necessary directories
-echo "Creating directories..."
-mkdir -p nextcloud/data/admin/files/{Movies,TV-Shows,Pictures,Documents}
-mkdir -p media/{movies,tv-shows,pictures,documents}
-mkdir -p nextcloud/config
-mkdir -p nextcloud/db
-mkdir -p nextcloud/apps
-mkdir -p nextcloud/themes
+echo "Setting up Nextcloud for document management..."
 
-# Set proper permissions
-echo "Setting permissions..."
-sudo chown -R 1000:1000 nextcloud
-sudo chown -R 1000:1000 media
-sudo chmod -R 755 nextcloud
-sudo chmod -R 755 media
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not running. Please start Docker first."
+    exit 1
+fi
 
-# Create symbolic links for media sync
-echo "Setting up media sync links..."
-ln -sf /media/movies /nextcloud/data/admin/files/Movies
-ln -sf /media/tv-shows /nextcloud/data/admin/files/TV-Shows
-ln -sf /media/pictures /nextcloud/data/admin/files/Pictures
-ln -sf /media/documents /nextcloud/data/admin/files/Documents
+# Check if docker-compose.yml exists
+if [ ! -f "docker-compose.yml" ]; then
+    echo "❌ docker-compose.yml not found. Please run this script from the project directory."
+    exit 1
+fi
 
-echo "Nextcloud setup complete!"
+echo "✅ Docker is running"
+echo "✅ docker-compose.yml found"
+
+# Create basic folder structure in Documents
 echo ""
-echo "Access URLs:"
-echo "- Kodi Web Interface: http://localhost"
-echo "- Nextcloud: http://localhost/nextcloud"
-echo "- Direct Nextcloud: http://localhost:8081"
+echo "Creating folder structure in /home/home/Documents..."
+
+# Check if Documents directory exists
+if [ ! -d "/home/home/Documents" ]; then
+    echo "⚠️  /home/home/Documents directory not found. Creating it..."
+    sudo mkdir -p /home/home/Documents
+    sudo chown $USER:$USER /home/home/Documents
+fi
+
+# Create media folders
+mkdir -p /home/home/Documents/Movies
+mkdir -p /home/home/Documents/TV-Shows
+mkdir -p /home/home/Documents/Music
+mkdir -p /home/home/Documents/Pictures
+mkdir -p /home/home/Documents/Documents
+mkdir -p /home/home/Documents/Downloads
+
+echo "✅ Folder structure created:"
+echo "   - /home/home/Documents/Movies"
+echo "   - /home/home/Documents/TV-Shows"
+echo "   - /home/home/Documents/Music"
+echo "   - /home/home/Documents/Pictures"
+echo "   - /home/home/Documents/Documents"
+echo "   - /home/home/Documents/Downloads"
+
 echo ""
-echo "Default credentials:"
-echo "- Nextcloud: admin / admin123"
-echo "- Samba: kodi / kodi123"
+echo "🚀 Nextcloud Setup Complete!"
 echo ""
 echo "Next steps:"
-echo "1. Start services: docker-compose up -d"
-echo "2. Access Nextcloud and create the folder structure"
-echo "3. Configure Kodi to scan the media folders"
-echo "4. Upload media files through Nextcloud interface" 
+echo "1. Start Nextcloud: docker compose up -d"
+echo "2. Access Nextcloud: http://localhost:9000"
+echo "3. Login with: admin / admin123"
+echo "4. Navigate to /documents to access your local files"
+echo "5. Upload and organize your media files"
+echo ""
+echo "Your Documents folder is now accessible through Nextcloud for full file management!" 
